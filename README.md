@@ -1,5 +1,5 @@
-# deploy-hook
-inital
+deploy-hook
+-----------
 a post-receive hook for repositories of website that clones the dev or master repo to a web directory upon push. 
 gitolite server controls access and which repos are cloned to web directory using repo-specific-hooks
 wild repos allow users to create multiple sites without shell access
