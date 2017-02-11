@@ -1,0 +1,134 @@
+#!/bin/sh
+# Author: msAshlee 2017
+# V 0.1.1
+#
+# post-receive hook for deploying a git branch to a web root
+#
+# git/gitolite user must be able to write to PR_www_dir
+# it is assumed user will have access to repo's since this script
+# should only be being run by the git/gitolite user
+#
+
+
+#conf
+PR_repo_dir=/home/git/repositories
+PR_www_dir=/var/www/html
+PR_ADMIN="Please contact your admin"
+
+#uncomment to below to enable
+# option var | enabled behavior | disabled behavior
+PR_show_www=  #Show full web root in response messages | Show only web path relative to web root
+PR_dev_site= #Clone both master or dev branches | Only clone master
+###############################
+
+
+while read PR_oldrev PR_newrev PR_ref
+do
+  echo "post-receive deploy v 0.1.1 hook hit: $(date +%Y%m%d)"
+  echo "old rev: $PR_oldrev"
+  echo "new rev: $PR_newrev"
+  echo "ref: $PR_ref"
+
+  if [ -d $PR_repo_dir ] && [ -d $PR_www_dir ]; then
+      #repo/www paths are good or symlink
+      if [ ! -L $PR_repo_dir ] && [ ! -L $PR_www_dir ]; then
+        #Not symbolic link
+        #First check if we are on master (or dev) branches, if not exit.
+        PR_branch=${PR_ref#"refs/heads/"}
+        echo "Branch $PR_branch..."
+        if [ $PR_branch = "master" ]; then
+           PR_MSG="Master Branch"
+         elif [ $PR_branch = "dev" ]; then
+          if [ ! -z ${PR_dev_site+x} ]; then
+            #dev branch is on
+            PR_MSG="Dev branch"
+           else
+            PR_ERR="Dev branch, however dev sites are not enabled."
+          fi
+         else
+            PR_ERR="Branch not supported for deployment"
+            unset PR_ADMIN
+        fi
+
+
+        if [ ! -z ${PR_MSG+x} ]; then
+          echo "Starting deployment of $PR_MSG"
+          #next get current (repo's) directory
+          if [ -z ${PWD+x} ]; then
+            #var unset
+            PR_DIR=$(pwd $GIT_DIR)
+            PR_MSG="\$PWD not set, \$PR_DIR set from \$GIT_DIR as:"
+           else
+            #var is set
+            PR_DIR=$PWD
+            PR_MSG="\$PWD var is set, \$PR_DIR set from \$PWD as:"
+          fi
+          echo $PR_MSG $PR_DIR
+
+          #remove repo directory and .git from current path to get the www location
+          PR_site_dir=${PR_DIR#$PR_repo_dir}
+          PR_site_dir=${PR_site_dir%".git"}
+          PR_site_dir="$PR_site_dir/$PR_branch"
+          echo "Site directory set to $PR_site_dir"
+
+          #check if the site dir exists, if not make it
+          if [ ! -z ${PR_show_www+x} ]; then PR_MSG=$PR_www_dir$PR_site_dir
+            else PR_MSG=$PR_site_dir
+          fi
+          if [ -d $PR_www_dir$PR_site_dir ]; then
+            #site exists, this is just a clone
+            echo "Folder $PR_MSG exists."
+           else
+            echo "Folder $PR_MSG doesn't exist..."
+            echo "Attempting to create it now...."
+            if mkdir -p $PR_www_dir$PR_site_dir ; then
+              echo "Success"
+             else
+              echo "Failed"
+              PR_ERR="Couldn't create site directory: $PR_MSG"
+            fi
+          fi
+          #folder should exist now, lets clone & thats all we need to do
+          if [ -z ${PR_ERR+x} ]; then
+            echo "Starting deployment...$PR_ERR"
+            GIT_WORK_TREE=$PR_www_dir$PR_site_dir git checkout -f
+            if [ $? ]; then
+              echo "git exited with $?"
+              echo "Deployment successful"
+             else
+              PR_ERR="Failure: Git exited $?"
+            fi
+           else
+            echo "Error found..."
+          fi
+        fi
+       #end of good things.
+       else
+       #symbolic link
+        if [ -L $PR_repo_dir ]; then
+          $PR_ERR="Repository"
+         else
+          $PR_ERR="Web"
+        fi
+        PR_ERR=$PR_ERR" directory is a symlink and not yet supported"
+      fi
+   else
+   #bad dir for www or repos, exit and just take push (nothing more to do)
+    if [ -d $PR_repo_dir ]; then
+      $PR_ERR="Repository"
+     else
+      $PR_ERR="Web"
+    fi
+    PR_ERR=$PR_ERR" directory doesn't exist"
+  fi
+
+  #Error message if PR_ERR is set
+  if [ ! -z ${PR_ERR+x} ]; then
+    echo "Deployment has been halted..."
+    echo $PR_ERR
+    [ ! -z ${PR_ADMIN+x} ] && echo $PR_ADMIN
+    exit 1
+  fi
+done
+unset PR_ERR PR_MSG PR_ADMIN PR_www_dir PR_site_dir PR_repo_dir PR_show_www PR_dev_site PR_oldrev PR_newrev PR_ref PR_branch PR_DIR
+exit 0
