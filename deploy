@@ -11,14 +11,28 @@
 
 
 #conf
+#folder locations, be sure to leave off the trailing spaces.
+# Currently there is no support here for spaces in directory names or repo
+# names, and at this point is not a likely addition.
+
+#repository directory
 PR_repo_dir=/home/git/repositories
+
+#Apache directory that will be serving the repos' content
 PR_www_dir=/var/www/html
+
+#Admin message sent to remote upon failures
 PR_ADMIN="Please contact your admin"
 
+
 #uncomment to below to enable
-# option var | enabled behavior | disabled behavior
-PR_show_www=  #Show full web root in response messages | Show only web path relative to web root
-PR_dev_site= #Clone both master or dev branches | Only clone master
+# enabled behavior | disabled behavior
+
+#Show full web root in response messages | Show only web path relative to web root
+PR_show_www=
+
+#Deploy master or dev branches | Only deploy master
+PR_dev_site=
 ###############################
 
 
@@ -92,8 +106,8 @@ do
           if [ -z ${PR_ERR+x} ]; then
             echo "Starting deployment...$PR_ERR"
             GIT_WORK_TREE=$PR_www_dir$PR_site_dir git checkout -f
-            if [ $? ]; then
-              echo "git exited with $?"
+            if [ $? -eq 0 ]; then
+              echo "git exited 0"
               echo "Deployment successful"
              else
               PR_ERR="Failure: Git exited $?"
